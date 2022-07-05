@@ -1,9 +1,3 @@
-# coding = utf-8
-# @Time : 2022/1/1 12:16
-# @Author : hky
-# @File : test.py
-# @Software : PyCharm
-
 import numpy as np
 import struct
 import matplotlib.pyplot as plt
@@ -15,7 +9,7 @@ from cpa.cpa_SCAUtil import SBOX, HW, correlation
 trace_length = 435002
 raw_trace_num = 10000
 start, end = 0, 500
-# 暂时使用前500个曲线
+
 
 # 读取indexfile
 def get_index_line(single_line):
@@ -57,7 +51,7 @@ def save_index_file(index_contents):
     return 1
 
 
-#从npy文件读取index file
+#load index file
 def load_index_npy_file():
     crypto = np.load("data/cipher.npy")
     offset = np.load("data/offset.npy")
@@ -75,7 +69,7 @@ def load_mask_file():
     return mask
 
 
-# 整合上面的函数
+
 def process_index_file(start: int, end: int):
     index_contents = read_index_file(start, end)
     try:
@@ -91,14 +85,14 @@ def process_index_file(start: int, end: int):
     print("AES key:", showed_key[0])
     return 0
 
-# print("**********处理index_file基础信息*************")
+
 # process_index_file(start, end)
 # print("\n\n")
 
 def read_single_file(trace_file):
     f = open(trace_file, "rb")
     content = f.read()
-    # 找到WAVEDESC字�?�串开始统计一些有用信�?
+
     base_offset = content.find(b"WAVEDESC")
     # print(base_offset)
     first_data_array_len = struct.unpack("<I", content[base_offset + 60: base_offset + 60 + 4])[0]  # 1st data array len
@@ -108,7 +102,7 @@ def read_single_file(trace_file):
 
     header_len = struct.unpack("<I", content[base_offset + 36: base_offset + 36 + 4])[0]
     data_offset = base_offset + header_len
-    # 直接跳过�?357�?字节
+
     # print(data_offset, data_points_num)
 
     first_points_ind = struct.unpack("<I", content[base_offset + 124: base_offset + 124 + 4])[0]
@@ -136,41 +130,36 @@ def read_trace_file(trace_num):
         print("Exception:", e)
 
 
-print("**********处理trace曲线�?,�?trace1为例*************")
+print("**********processing trace1*************")
 first_trace = np.array(read_single_file("traces/00000/Z1Trace00000.trc"))
 print('The very first 10 power sample:', first_trace[:10])
 # plt.plot(first_trace)
 # plt.show()
 print("\n\n")
 
-# 因为运�?�起来时间较�?,所以已经运行过并且存储好了,这边先注释掉
-print("**********处理�?1000�?曲线并存储至00000.npy文件*************")
-print("**********已提前运行过,此�?�不展示具体过程**********************")
+
 # raw_trace = np.array(read_trace_file(1000))
 # print(raw_trace[:,:10])
 # np.save("traces/00000.npy", raw_trace)
 print("\n\n")
 
 
-# 准备AES算法相关数据
-# 明文 偏移 第一轮轮密钥
-
-# 获取基本信息
+# basic info
 crypto, offset, showed_key = load_index_npy_file()
 
-# 计算轮密钥
+# round key
 key_size = len(showed_key[0]) # 64 hex
 real_key = bytes.fromhex(showed_key[0])
-print("密钥为：")
+print("Key is：")
 print([int(b) for b in real_key])
-key_size = len(real_key) # 32个数字 第一轮只用到前16个数字
+key_size = len(real_key) # 32 bytes
 
 
 aes_cipher = AES.AES()
 rounds = 14
 expandedKeySize = 16 * (rounds + 1)
 expandedKey = aes_cipher.expandKey(real_key, key_size, expandedKeySize)
-round_key = aes_cipher.createRoundKey(expandedKey, 0) # 第一轮轮密钥，即前16个数字
+round_key = aes_cipher.createRoundKey(expandedKey, 0) # 16 bytes for the 1st round
 # print(round_key)
 first_key_byte = round_key[0] # 0x6c
 first_round_key = [round_key[i * 4 + j] for j in range(4) for i in range(4)]
@@ -178,16 +167,16 @@ print('The First Key byte: ', first_key_byte)
 print('The First Round Key: ', first_round_key)
 print("\n\n")
 
-# 读取明文与掩码偏移
+
 mask = load_mask_file()
-mask_offset = [int(o, 16) for o in offset] # 将16进制转化为十进制
+mask_offset = [int(o, 16) for o in offset]
 plaintext = []
 for p in crypto[:, 0]:
-    plaintext.append([int(p[b : b + 2], 16) for b in range(0, len(p), 2)])# 每两个字符组成一个十进制数
+    plaintext.append([int(p[b : b + 2], 16) for b in range(0, len(p), 2)])
 plaintext = np.array(plaintext)
 
 
-# 从npy文件读取曲线
+# load traces from npy
 def load_npy_traces(start, end):
     raw_samples = np.load("traces/00000.npy")
     raw_traces = np.array(raw_samples[start: start + end])
@@ -195,39 +184,35 @@ def load_npy_traces(start, end):
     return raw_traces
 
 raw_traces = load_npy_traces(start, end)
-trace_num = raw_traces.shape[0] # 就等于off
+trace_num = raw_traces.shape[0] # 500
 sample_num = raw_traces.shape[1] # 435002
 print("\n\n")
 
 #
-# # 以下是密钥正确时的一些操作，在攻击时，循环key值代入这个过程。取最大的corr值的key即可
-# print("*********计算理论泄露值即HW（先取所有明文的第一字节）*************")
-# # 计算泄露模型
 # masked_state_byte_leak = np.array([HW[SBOX[p[0] ^ first_key_byte] ^ mask[(o + 1) % 16]] for p, o in zip(plaintext, mask_offset)])
-# print("泄露矩阵的形状：", masked_state_byte_leak.shape)
-# print("取泄露矩阵前20个数字看一看", masked_state_byte_leak[:20])
+# print(masked_state_byte_leak.shape)
+# print(masked_state_byte_leak[:20])
 # print("\n\n")
 
 
-print("*************计算16个字节的泄露值和trace的相关性**************")
+# print("*************计算16个字节的泄露值和trace的相关性**************")
 sample_length = trace_length
 analysis_trace_num = 500
-most_corr_point = 5 # 记录最有可能的前5的值
+most_corr_point = 5
 result = ""
 
 for plain_ind in range(16):
-    max_corr_k = np.zeros(256)  # 记录256个k值时，最大的相关性，最后那个最大的相关性的k有最大可能成为第一字节的密钥
+    max_corr_k = np.zeros(256)
     max_corr_t = 0.0
     max_corr_value = 0.0
     for k in range(256):
         masked_state_byte_leak1 = np.array(
             [HW[SBOX[p[plain_ind] ^ k] ^ mask[(o + 1) % 16]] for p, o in zip(plaintext, mask_offset)])
-        # print("**************泄露模型*****************")
-        # print('Sample leakage：', first_byte_leak[:10], masked_state_byte_leak[:10])#这边就是每个明文的第一字节得到的hw
-        # print("泄露矩阵的形状：", masked_state_byte_leak1.shape)
-        # print("取泄露矩阵前20个数字看一看", masked_state_byte_leak1[:20])
 
-        # 相关性寻找，计算500条trace的每一列，与理论泄露值进行相关系数的计算，取出相关系数最大的那些点的索引
+        # print('Sample leakage：', first_byte_leak[:10], masked_state_byte_leak[:10])
+        # print("Shape of leak：", masked_state_byte_leak1.shape)
+        # print(masked_state_byte_leak1[:20])
+
         s1_corr_rank = np.zeros(sample_length)
         candidate_traces = raw_traces[:analysis_trace_num]
         s1_corr_rank += correlation(masked_state_byte_leak1[:analysis_trace_num], candidate_traces)
@@ -239,7 +224,7 @@ for plain_ind in range(16):
         # plt.plot(s1_corr_rank)
         # plt.show()
         # print(k)
-    # print(max_corr_t) #看一下最大值所在的trace的时间点,k为108的时候应该要更新到228403
-    max_corr_ind = max_corr_k.argsort()[-most_corr_point:][::-1]  # 将最大的几个相关性的key的索引值也就是key本身排列出来
-    result += hex(max_corr_ind[0])[2:].zfill(2) #有个特殊值08 需要填满0 否则少一位
+    # print(max_corr_t)
+    max_corr_ind = max_corr_k.argsort()[-most_corr_point:][::-1]
+    result += hex(max_corr_ind[0])[2:].zfill(2)
     print("The most possible key is: ", result)
